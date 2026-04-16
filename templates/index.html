@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feedback Report Portal | Analytics Engine</title>
+    <meta name="description" content="Generate professional feedback analytics and monthly conversion reports from your sales and feedback data.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+
+    <!-- Animated Background -->
+    <div class="bg-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="orb orb-4"></div>
+    </div>
+    <div class="grid-overlay"></div>
+
+    <div class="page-wrapper">
+
+        <!-- Top Nav -->
+        <nav class="top-nav">
+            <div class="nav-brand">
+                <div class="brand-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                </div>
+                <span class="brand-name">FeedbackIQ</span>
+                <span class="brand-badge">Analytics</span>
+            </div>
+            <div class="nav-status" id="navStatus">
+                <div class="status-dot"></div>
+                <span>Ready to Process</span>
+            </div>
+        </nav>
+
+        <!-- Hero -->
+        <section class="hero-section">
+            <div class="hero-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Dual Report Generation Engine
+            </div>
+            <h1 class="hero-title">
+                Two Reports.<br>
+                <span class="gradient-text">Two Separate Workflows.</span>
+            </h1>
+            <p class="hero-subtitle">Each section operates independently — upload files, generate, and download with its own dedicated workflow. No mixing, no combining.</p>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             REPORT SECTION 1 — FEEDBACK ANALYTICS (4-Sheet)
+             ═══════════════════════════════════════════════════════════ -->
+        <div class="report-section report-section-blue">
+            <div class="rs-header">
+                <div class="rs-header-left">
+                    <div class="rs-num rs-num-blue">01</div>
+                    <div>
+                        <h2 class="rs-title">Feedback Analytics Report</h2>
+                        <p class="rs-desc">Generates a <strong>4-sheet Excel workbook</strong> — RBM, BDM, Branch &amp; Staff wise breakdown with Total Bill Cut, Feedback Count, Ratings &amp; % Conversion.</p>
+                    </div>
+                </div>
+                <div class="rs-pills">
+                    <span class="pill pill-rbm">RBM</span>
+                    <span class="pill pill-bdm">BDM</span>
+                    <span class="pill pill-branch">Branch</span>
+                    <span class="pill pill-staff">Staff</span>
+                </div>
+            </div>
+
+            <!-- Upload Panel R1 -->
+            <div class="upload-panel" id="uploadPanel1">
+                <div class="upload-section-header">
+                    <div class="ush-left">
+                        <div class="ush-icon ush-icon-blue">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        </div>
+                        <div>
+                            <h3 class="ush-title">Upload Required Files</h3>
+                            <p class="ush-subtitle">Both files required to generate this report</p>
+                        </div>
+                    </div>
+                    <div class="ush-badge ush-badge-blue" id="ushBadge1"><span id="ushBadgeText1">0 / 2 uploaded</span></div>
+                </div>
+
+                <div class="upload-rows">
+                    <!-- Row 1A -->
+                    <div class="upload-row">
+                        <div class="upload-row-left">
+                            <div class="urow-num">1</div>
+                            <div class="urow-icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM3 9h18M9 21V9"/></svg></div>
+                            <div class="urow-info">
+                                <span class="urow-label">Detailed Sale Report</span>
+                                <span class="urow-desc">Staff hierarchy &amp; sales transactions (.xlsx)</span>
+                            </div>
+                        </div>
+                        <div class="urow-right">
+                            <div class="drop-zone urow-dropzone" id="salesDropZone1">
+                                <input type="file" id="sales_file" class="hidden-input" name="sales_file" accept=".xlsx,.xls">
+                                <div class="drop-content" id="salesDropContent1">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="urow-upload-icon"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                    <span class="urow-drop-text">Drop here or <span class="drop-link">Browse</span></span>
+                                </div>
+                                <div class="drop-success-content hidden" id="salesSuccessContent1">
+                                    <div class="urow-file-chip">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="urow-chip-icon"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                        <span class="file-name-text" id="salesFileName1">file.xlsx</span>
+                                        <span class="urow-ready-badge">✓ Ready</span>
+                                        <button class="remove-file-btn" id="removeSalesFile1" type="button">✕</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="upload-row-divider"></div>
+                    <!-- Row 1B -->
+                    <div class="upload-row">
+                        <div class="upload-row-left">
+                            <div class="urow-num urow-num-purple">2</div>
+                            <div class="urow-icon icon-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+                            <div class="urow-info">
+                                <span class="urow-label">Feedback Report</span>
+                                <span class="urow-desc">Customer ratings with staff &amp; branch names (.xlsx)</span>
+                            </div>
+                        </div>
+                        <div class="urow-right">
+                            <div class="drop-zone urow-dropzone" id="fbDropZone1">
+                                <input type="file" id="feedback_file" class="hidden-input" name="feedback_file" accept=".xlsx,.xls">
+                                <div class="drop-content" id="fbDropContent1">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="urow-upload-icon"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                    <span class="urow-drop-text">Drop here or <span class="drop-link">Browse</span></span>
+                                </div>
+                                <div class="drop-success-content hidden" id="fbSuccessContent1">
+                                    <div class="urow-file-chip">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="urow-chip-icon"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                        <span class="file-name-text" id="fbFileName1">file.xlsx</span>
+                                        <span class="urow-ready-badge">✓ Ready</span>
+                                        <button class="remove-file-btn" id="removeFbFile1" type="button">✕</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="upload-action-bar">
+                    <div class="generate-info" id="generateInfo1">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span>Upload both files to enable generation</span>
+                    </div>
+                    <button class="generate-btn generate-btn-blue" id="generateBtn1" disabled>
+                        <div class="btn-bg-anim"></div>
+                        <span class="btn-content">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            <span>Generate 4-Sheet Report</span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Processing Panel R1 -->
+            <div class="process-panel hidden" id="processPanel1">
+                <div class="process-animation">
+                    <div class="process-ring ring-1"></div>
+                    <div class="process-ring ring-2"></div>
+                    <div class="process-ring ring-3"></div>
+                    <div class="process-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    </div>
+                </div>
+                <h3 class="process-title">Generating Feedback Analytics...</h3>
+                <p class="process-subtitle">Computing RBM / BDM / Branch / Staff breakdown with bill cuts and ratings.</p>
+                <div class="process-steps-list">
+                    <div class="pstep" id="pstep1a"><div class="pstep-dot"></div><span>Loading &amp; cleaning sales data</span><div class="pstep-check">✓</div></div>
+                    <div class="pstep" id="pstep2a"><div class="pstep-dot"></div><span>Mapping staff hierarchy</span><div class="pstep-check">✓</div></div>
+                    <div class="pstep" id="pstep3a"><div class="pstep-dot"></div><span>Aggregating feedback ratings</span><div class="pstep-check">✓</div></div>
+                    <div class="pstep" id="pstep4a"><div class="pstep-dot"></div><span>Writing 4-sheet Excel workbook</span><div class="pstep-check">✓</div></div>
+                </div>
+            </div>
+
+            <!-- Success Panel R1 -->
+            <div class="success-panel hidden" id="successPanel1">
+                <div class="success-checkmark">
+                    <svg viewBox="0 0 52 52" class="checkmark-svg"><circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/><path class="checkmark-path" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/></svg>
+                </div>
+                <h3 class="success-title">Feedback Analytics Ready!</h3>
+                <p class="success-subtitle">Your 4-sheet workbook is ready with RBM, BDM, Branch &amp; Staff analytics.</p>
+                <div class="sheets-preview">
+                    <div class="sheet-card sc-rbm"><div class="sheet-icon">📊</div><span>RBM</span></div>
+                    <div class="sheet-card sc-bdm"><div class="sheet-icon">📋</div><span>BDM</span></div>
+                    <div class="sheet-card sc-branch"><div class="sheet-icon">🏪</div><span>BRANCH</span></div>
+                    <div class="sheet-card sc-staff"><div class="sheet-icon">👤</div><span>STAFF</span></div>
+                </div>
+                <a class="download-btn" id="downloadBtn1" href="#" download>
+                    <span class="download-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+                    <div class="download-btn-text">
+                        <span class="d-main">Download Feedback Analytics Report</span>
+                        <span class="d-sub">4-Sheet Excel Workbook (.xlsx)</span>
+                    </div>
+                    <div class="download-pulse"></div>
+                </a>
+                <button class="reset-btn" id="resetBtn1" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.55"/></svg>
+                    Process New Files
+                </button>
+            </div>
+
+            <!-- Error Panel R1 -->
+            <div class="error-panel hidden" id="errorPanel1">
+                <div class="error-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+                <h3 class="error-title">Processing Failed</h3>
+                <p class="error-message" id="errorMessage1">An unexpected error occurred.</p>
+                <button class="retry-btn" id="retryBtn1" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.55"/></svg>
+                    Try Again
+                </button>
+            </div>
+        </div><!-- /report-section-1 -->
+
+
+        <!-- Section Divider -->
+        <div class="section-divider">
+            <div class="section-divider-line"></div>
+            <div class="section-divider-label">SEPARATE REPORT</div>
+            <div class="section-divider-line"></div>
+        </div>
+
+
+        <!-- ═══════════════════════════════════════════════════════════
+             REPORT SECTION 2 — MONTHLY BRANCH CONVERSION
+             ═══════════════════════════════════════════════════════════ -->
+        <div class="report-section report-section-teal">
+            <div class="rs-header">
+                <div class="rs-header-left">
+                    <div class="rs-num rs-num-teal">02</div>
+                    <div>
+                    <h2 class="rs-title">SMS Branch Feedback Report</h2>
+                        <p class="rs-desc">Generates a <strong>branch-wise SMS feedback summary</strong> — Total Bill Cut (unique per branch), Feedback Count, Ratings &amp; % Conversion. Date range auto-detected from data.</p>
+                    </div>
+                </div>
+                <div class="rs-pills">
+                    <span class="pill pill-monthly">📊 Branch-wise</span>
+                    <span class="pill pill-branch">% Conversion</span>
+                    <span class="pill pill-monthly">Date Range</span>
+                </div>
+            </div>
+
+            <!-- Upload Panel R2 -->
+            <div class="upload-panel upload-panel-teal" id="uploadPanel2">
+                <div class="upload-section-header">
+                    <div class="ush-left">
+                        <div class="ush-icon ush-icon-teal">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        </div>
+                        <div>
+                            <h3 class="ush-title">Upload Required Files</h3>
+                            <p class="ush-subtitle">Both files required to generate SMS feedback report</p>
+                        </div>
+                    </div>
+                    <div class="ush-badge ush-badge-teal" id="ushBadge2"><span id="ushBadgeText2">0 / 2 uploaded</span></div>
+                </div>
+
+                <div class="upload-rows">
+                    <!-- Row 2A -->
+                    <div class="upload-row">
+                        <div class="upload-row-left">
+                            <div class="urow-num urow-num-teal">1</div>
+                            <div class="urow-icon icon-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM3 9h18M9 21V9"/></svg></div>
+                            <div class="urow-info">
+                                <span class="urow-label">Detailed Sale Report</span>
+                                <span class="urow-desc">Used to calculate bill cuts per branch (.xlsx)</span>
+                            </div>
+                        </div>
+                        <div class="urow-right">
+                            <div class="drop-zone urow-dropzone urow-dropzone-teal" id="salesDropZone2">
+                                <input type="file" id="sales_file_m" class="hidden-input" name="sales_file_m" accept=".xlsx,.xls">
+                                <div class="drop-content" id="salesDropContent2">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="urow-upload-icon"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                    <span class="urow-drop-text">Drop here or <span class="drop-link">Browse</span></span>
+                                </div>
+                                <div class="drop-success-content hidden" id="salesSuccessContent2">
+                                    <div class="urow-file-chip">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="urow-chip-icon"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                        <span class="file-name-text" id="salesFileName2">file.xlsx</span>
+                                        <span class="urow-ready-badge">✓ Ready</span>
+                                        <button class="remove-file-btn" id="removeSalesFile2" type="button">✕</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="upload-row-divider"></div>
+                    <!-- Row 2B -->
+                    <div class="upload-row">
+                        <div class="upload-row-left">
+                            <div class="urow-num urow-num-teal" style="background:linear-gradient(135deg,#0d9488,#14b8a6)">2</div>
+                            <div class="urow-icon icon-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+                            <div class="urow-info">
+                                <span class="urow-label">Feedback Report</span>
+                                <span class="urow-desc">Used for branch-wise feedback count &amp; ratings (.xlsx)</span>
+                            </div>
+                        </div>
+                        <div class="urow-right">
+                            <div class="drop-zone urow-dropzone urow-dropzone-teal" id="fbDropZone2">
+                                <input type="file" id="feedback_file_m" class="hidden-input" name="feedback_file_m" accept=".xlsx,.xls">
+                                <div class="drop-content" id="fbDropContent2">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="urow-upload-icon"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                    <span class="urow-drop-text">Drop here or <span class="drop-link">Browse</span></span>
+                                </div>
+                                <div class="drop-success-content hidden" id="fbSuccessContent2">
+                                    <div class="urow-file-chip">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="urow-chip-icon"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                        <span class="file-name-text" id="fbFileName2">file.xlsx</span>
+                                        <span class="urow-ready-badge">✓ Ready</span>
+                                        <button class="remove-file-btn" id="removeFbFile2" type="button">✕</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="upload-action-bar">
+                    <div class="generate-info" id="generateInfo2">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span>Upload both files to enable generation</span>
+                    </div>
+                    <button class="generate-btn generate-btn-teal" id="generateBtn2" disabled>
+                        <div class="btn-bg-anim btn-bg-anim-teal"></div>
+                        <span class="btn-content">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <span>Generate SMS Report</span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Processing Panel R2 -->
+            <div class="process-panel process-panel-teal hidden" id="processPanel2">
+                <div class="process-animation process-animation-teal">
+                    <div class="process-ring ring-1 ring-teal-1"></div>
+                    <div class="process-ring ring-2 ring-teal-2"></div>
+                    <div class="process-ring ring-3 ring-teal-3"></div>
+                    <div class="process-icon process-icon-teal">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    </div>
+                </div>
+                <h3 class="process-title">Generating SMS Feedback Report...</h3>
+                <p class="process-subtitle">Computing branch-wise bill cuts, feedback counts, and ratings.</p>
+                <div class="process-steps-list">
+                    <div class="pstep" id="pstep1b"><div class="pstep-dot"></div><span>Detecting date range from data</span><div class="pstep-check">✓</div></div>
+                    <div class="pstep" id="pstep2b"><div class="pstep-dot"></div><span>Aggregating bill cuts per branch</span><div class="pstep-check">✓</div></div>
+                    <div class="pstep" id="pstep3b"><div class="pstep-dot"></div><span>Computing feedback &amp; ratings</span><div class="pstep-check">✓</div></div>
+                    <div class="pstep" id="pstep4b"><div class="pstep-dot"></div><span>Writing SMS feedback Excel report</span><div class="pstep-check">✓</div></div>
+                </div>
+            </div>
+
+            <!-- Success Panel R2 -->
+            <div class="success-panel success-panel-teal hidden" id="successPanel2">
+                <div class="success-checkmark">
+                    <svg viewBox="0 0 52 52" class="checkmark-svg"><circle class="checkmark-circle checkmark-circle-teal" cx="26" cy="26" r="25" fill="none"/><path class="checkmark-path checkmark-path-teal" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/></svg>
+                </div>
+                <h3 class="success-title success-title-teal">SMS Report Ready!</h3>
+                <p class="success-subtitle">Your branch-wise SMS feedback report with date range is ready.</p>
+                <div class="sheets-preview">
+                    <div class="sheet-card sc-monthly"><div class="sheet-icon">🏪</div><span>BRANCH</span></div>
+                    <div class="sheet-card sc-monthly"><div class="sheet-icon">📊</div><span>FEEDBACK</span></div>
+                    <div class="sheet-card sc-monthly"><div class="sheet-icon">📈</div><span>% CONV</span></div>
+                </div>
+                <a class="download-btn download-btn-teal" id="downloadBtn2" href="#" download>
+                    <span class="download-btn-icon download-btn-icon-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+                    <div class="download-btn-text">
+                        <span class="d-main">Download SMS Feedback Report</span>
+                        <span class="d-sub">Branch-Wise Summary Excel (.xlsx)</span>
+                    </div>
+                    <div class="download-pulse download-pulse-teal"></div>
+                </a>
+                <button class="reset-btn" id="resetBtn2" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.55"/></svg>
+                    Process New Files
+                </button>
+            </div>
+
+            <!-- Error Panel R2 -->
+            <div class="error-panel hidden" id="errorPanel2">
+                <div class="error-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+                <h3 class="error-title">Processing Failed</h3>
+                <p class="error-message" id="errorMessage2">An unexpected error occurred.</p>
+                <button class="retry-btn" id="retryBtn2" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.55"/></svg>
+                    Try Again
+                </button>
+            </div>
+        </div><!-- /report-section-2 -->
+
+
+        <!-- Bottom Info Strip -->
+        <div class="info-strip">
+            <div class="info-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span>Files processed locally — never uploaded to cloud</span>
+            </div>
+            <div class="info-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>Each report section works independently</span>
+            </div>
+            <div class="info-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+                <span>2 reports: 4-Sheet Analytics + SMS Branch Feedback</span>
+            </div>
+        </div>
+
+    </div><!-- /page-wrapper -->
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
