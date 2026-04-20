@@ -655,7 +655,9 @@ def download(filename):
 
 
 if __name__ == '__main__':
-    print("Starting Feedback Report Portal server on port 9020...")
-    # use_reloader=True keeps hot-reload; debug=False prevents Werkzeug's HTML
-    # debugger from overriding our JSON error handlers
-    app.run(debug=False, use_reloader=True, port=9020)
+    # Determine port from Render/environment, default to 9020 locally
+    port = int(os.environ.get('PORT', 9020))
+    print(f"Starting Feedback Report Portal server on port {port}...")
+    # On Render, apps MUST bind to 0.0.0.0 to receive external traffic.
+    # use_reloader=False to prevent Werkzeug spawning duplicate processes on production
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
