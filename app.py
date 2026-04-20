@@ -13,8 +13,14 @@ app.secret_key = 'super_secret_key'
 # Increase max upload size if needed (e.g. 50MB)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
-UPLOAD_FOLDER = 'uploads'
-OUTPUT_FOLDER = 'output'
+# On Render (and similar platforms) only /tmp is guaranteed writable.
+# Locally we use the project-relative folders as before.
+if os.environ.get('RENDER'):
+    UPLOAD_FOLDER = '/tmp/uploads'
+    OUTPUT_FOLDER = '/tmp/output'
+else:
+    UPLOAD_FOLDER = 'uploads'
+    OUTPUT_FOLDER = 'output'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
