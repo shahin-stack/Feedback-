@@ -1,13 +1,17 @@
 import os
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, jsonify
+from werkzeug.exceptions import HTTPException
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import traceback
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_key'
+# Increase max upload size if needed (e.g. 50MB)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'output'
@@ -557,6 +561,20 @@ def process_monthly_report(sales_path: str, fb_path: str, output_path: str):
 
 
 # ---------------------------------------------------------------------------
+# Global error handlers — always return JSON so the frontend never receives HTML
+# ---------------------------------------------------------------------------
+@app.errorhandler(HTTPException)
+def handle_http_exception(e):
+    return jsonify({'status': 'error', 'message': f'{e.code} {e.name}: {e.description}'}), e.code
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    traceback.print_exc()
+    return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
 # Flask routes
 # ---------------------------------------------------------------------------
 @app.route('/')
@@ -567,57 +585,59 @@ def index():
 @app.route('/process', methods=['POST'])
 def process():
     """Generate the 4-sheet Feedback Analytics Report."""
-    if 'sales_file' not in request.files or 'feedback_file' not in request.files:
-        return {'status': 'error', 'message': 'Missing files'}, 400
-
-    sales_file    = request.files['sales_file']
-    feedback_file = request.files['feedback_file']
-
-    if sales_file.filename == '' or feedback_file.filename == '':
-        return {'status': 'error', 'message': 'No file selected'}, 400
-
-    sales_path = os.path.join(UPLOAD_FOLDER, 'sales_r1.xlsx')
-    fb_path    = os.path.join(UPLOAD_FOLDER, 'feedback_r1.xlsx')
-    sales_file.save(sales_path)
-    feedback_file.save(fb_path)
-
-    timestamp   = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-    out_name    = f'Feedback_Analytics_{timestamp}.xlsx'
-    output_path = os.path.join(OUTPUT_FOLDER, out_name)
-
     try:
+        if 'sales_file' not in request.files or 'feedback_file' not in request.files:
+            return jsonify({'status': 'error', 'message': 'Missing files'}), 400
+
+        sales_file    = request.files['sales_file']
+        feedback_file = request.files['feedback_file']
+
+        if sales_file.filename == '' or feedback_file.filename == '':
+            return jsonify({'status': 'error', 'message': 'No file selected'}), 400
+
+        sales_path = os.path.join(UPLOAD_FOLDER, 'sales_r1.xlsx')
+        fb_path    = os.path.join(UPLOAD_FOLDER, 'feedback_r1.xlsx')
+        sales_file.save(sales_path)
+        feedback_file.save(fb_path)
+
+        timestamp   = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+        out_name    = f'Feedback_Analytics_{timestamp}.xlsx'
+        output_path = os.path.join(OUTPUT_FOLDER, out_name)
+
         process_reports(sales_path, fb_path, output_path)
-        return {'status': 'success', 'filename': out_name}
+        return jsonify({'status': 'success', 'filename': out_name})
     except Exception as e:
-        return {'status': 'error', 'message': str(e)}, 500
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/process-monthly', methods=['POST'])
 def process_monthly():
     """Generate the standalone Monthly Branch Conversion Report."""
-    if 'sales_file_m' not in request.files or 'feedback_file_m' not in request.files:
-        return {'status': 'error', 'message': 'Missing files'}, 400
-
-    sales_file    = request.files['sales_file_m']
-    feedback_file = request.files['feedback_file_m']
-
-    if sales_file.filename == '' or feedback_file.filename == '':
-        return {'status': 'error', 'message': 'No file selected'}, 400
-
-    sales_path = os.path.join(UPLOAD_FOLDER, 'sales_r2.xlsx')
-    fb_path    = os.path.join(UPLOAD_FOLDER, 'feedback_r2.xlsx')
-    sales_file.save(sales_path)
-    feedback_file.save(fb_path)
-
-    timestamp   = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-    out_name    = f'Monthly_Conversion_{timestamp}.xlsx'
-    output_path = os.path.join(OUTPUT_FOLDER, out_name)
-
     try:
+        if 'sales_file_m' not in request.files or 'feedback_file_m' not in request.files:
+            return jsonify({'status': 'error', 'message': 'Missing files'}), 400
+
+        sales_file    = request.files['sales_file_m']
+        feedback_file = request.files['feedback_file_m']
+
+        if sales_file.filename == '' or feedback_file.filename == '':
+            return jsonify({'status': 'error', 'message': 'No file selected'}), 400
+
+        sales_path = os.path.join(UPLOAD_FOLDER, 'sales_r2.xlsx')
+        fb_path    = os.path.join(UPLOAD_FOLDER, 'feedback_r2.xlsx')
+        sales_file.save(sales_path)
+        feedback_file.save(fb_path)
+
+        timestamp   = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+        out_name    = f'Monthly_Conversion_{timestamp}.xlsx'
+        output_path = os.path.join(OUTPUT_FOLDER, out_name)
+
         process_monthly_report(sales_path, fb_path, output_path)
-        return {'status': 'success', 'filename': out_name}
+        return jsonify({'status': 'success', 'filename': out_name})
     except Exception as e:
-        return {'status': 'error', 'message': str(e)}, 500
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/download/<filename>')
@@ -629,4 +649,7 @@ def download(filename):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=8000)
+    print("Starting Feedback Report Portal server on port 9020...")
+    # use_reloader=True keeps hot-reload; debug=False prevents Werkzeug's HTML
+    # debugger from overriding our JSON error handlers
+    app.run(debug=False, use_reloader=True, port=9020)
