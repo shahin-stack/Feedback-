@@ -143,7 +143,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const res  = await fetch(ENDPOINT, { method: 'POST', body: formData });
-                const data = await res.json();
+                const text = await res.text();
+                let data;
+                try { data = JSON.parse(text); }
+                catch (_) {
+                    throw new Error(
+                        text.trim() === ''
+                        ? 'Server timed out or ran out of memory. Please try with a smaller file.'
+                        : 'Server returned an unexpected response. Check Render logs.'
+                    );
+                }
                 await stepsPromise;
 
                 if (data.status === 'success') {
@@ -276,7 +285,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const res  = await fetch(ENDPOINT, { method: 'POST', body: formData });
-                const data = await res.json();
+                const text = await res.text();
+                let data;
+                try { data = JSON.parse(text); }
+                catch (_) {
+                    throw new Error(
+                        text.trim() === ''
+                        ? 'Server timed out or ran out of memory. Please try with a smaller file.'
+                        : 'Server returned an unexpected response. Check Render logs.'
+                    );
+                }
                 await stepsPromise;
 
                 if (data.status === 'success') {

@@ -1,4 +1,5 @@
 import os
+import gc
 from flask import Flask, render_template, request, send_file, jsonify
 from werkzeug.exceptions import HTTPException
 import pandas as pd
@@ -228,13 +229,22 @@ def load_feedback_auto(fb_path):
 # ---------------------------------------------------------------------------
 def process_reports(sales_path, fb_path, output_path):
 
-    # ── Load & clean sales ──────────────────────────────────────────────────
-    df_sales = safe_read_excel(sales_path, sheet_name='Detailed Sales Report', header=6)
-    df_sales.columns = df_sales.columns.str.strip()
+    # ── Load & clean sales — only the columns we actually need ──────────────
+    # Read all columns first to find the right header, then slim down
+    df_sales_raw = safe_read_excel(sales_path, sheet_name='Detailed Sales Report', header=6)
+    df_sales_raw.columns = df_sales_raw.columns.str.strip()
 
-    for col in df_sales.columns:
+    # Remove 'general' category/designation rows
+    for col in df_sales_raw.columns:
         if 'category' in str(col).lower() or 'designation' in str(col).lower():
-            df_sales = df_sales[~(df_sales[col].astype(str).str.strip().str.lower() == 'general')]
+            df_sales_raw = df_sales_raw[~(df_sales_raw[col].astype(str).str.strip().str.lower() == 'general')]
+
+    # Keep only the columns needed for all downstream operations
+    NEEDED_COLS = ['Staff Code', 'Staff', 'Branch', 'RBM', 'BDM', 'Customer Mobile']
+    available   = [c for c in NEEDED_COLS if c in df_sales_raw.columns]
+    df_sales    = df_sales_raw[available].copy()
+    del df_sales_raw
+    gc.collect()
 
     BILL_COL = 'Customer Mobile'
     df_bills = (df_sales.drop_duplicates(subset=[BILL_COL])
@@ -244,8 +254,12 @@ def process_reports(sales_path, fb_path, output_path):
     branch_bill_cut = df_bills.groupby('Branch').size().reset_index(name='Branch Bills')
     rbm_bill_cut    = df_bills.groupby('RBM').size().reset_index(name='RBM Bills')
     bdm_bill_cut    = df_bills.groupby('BDM').size().reset_index(name='BDM Bills')
+    del df_bills
+    gc.collect()
 
     master_staff = df_sales.drop_duplicates(subset=['Staff Code']).copy()
+    del df_sales
+    gc.collect()
 
     staff_to_rbm  = dict(zip(master_staff['Staff'], master_staff['RBM']))
     staff_to_bdm  = dict(zip(master_staff['Staff'], master_staff['BDM']))
@@ -547,11 +561,23 @@ def _build_sms_branch_report(df_sales: pd.DataFrame,
 
 def process_monthly_report(sales_path: str, fb_path: str, output_path: str):
     """Generate the standalone SMS-Style Branch Conversion Excel (Section 02)."""
-    df_sales = safe_read_excel(sales_path, sheet_name='Detailed Sales Report', header=6)
-    df_sales.columns = df_sales.columns.str.strip()
-    for col in df_sales.columns:
+    df_sales_raw = safe_read_excel(sales_path, sheet_name='Detailed Sales Report', header=6)
+    df_sales_raw.columns = df_sales_raw.columns.str.strip()
+    for col in df_sales_raw.columns:
         if 'category' in str(col).lower() or 'designation' in str(col).lower():
-            df_sales = df_sales[~(df_sales[col].astype(str).str.strip().str.lower() == 'general')]
+            df_sales_raw = df_sales_raw[~(df_sales_raw[col].astype(str).str.strip().str.lower() == 'general')]
+
+    # Slim down to only the columns needed for the SMS report
+    NEEDED_SMS  = ['Branch', 'Customer Mobile', 'Date', 'Bill Date', 'Trans Date',
+                   'Sale Date', 'Invoice Date']
+    available   = [c for c in df_sales_raw.columns
+                   if c in NEEDED_SMS or 'date' in str(c).lower()]
+    # Always keep Branch and Customer Mobile
+    must_have   = [c for c in ['Branch', 'Customer Mobile'] if c in df_sales_raw.columns]
+    keep_cols   = list(dict.fromkeys(must_have + available))   # deduplicated, order preserved
+    df_sales    = df_sales_raw[keep_cols].copy()
+    del df_sales_raw
+    gc.collect()
 
     df_fb = load_feedback_auto(fb_path)
     if 'Branch Name' in df_fb.columns:
