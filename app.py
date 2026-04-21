@@ -13,6 +13,18 @@ app.secret_key = 'super_secret_key'
 # Increase max upload size if needed (e.g. 50MB)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
+# ---------------------------------------------------------------------------
+# Safe Excel reader — tries calamine first, falls back to openpyxl
+# This prevents a hard crash on Render if the native calamine lib is missing.
+# ---------------------------------------------------------------------------
+def safe_read_excel(path, **kwargs):
+    """Read Excel with calamine engine; fall back to openpyxl on any error."""
+    try:
+        return pd.read_excel(path, engine='calamine', **kwargs)
+    except Exception:
+        kwargs.pop('engine', None)
+        return pd.read_excel(path, engine='openpyxl', **kwargs)
+
 # On Render (and similar platforms) only /tmp is guaranteed writable.
 # Locally we use the project-relative folders as before.
 if os.environ.get('RENDER'):
@@ -188,25 +200,25 @@ def _add_total_row(df: pd.DataFrame, label_col: str,
 def load_feedback_auto(fb_path):
     """Robustly load feedback Excel, handling potential header offsets."""
     try:
-        df = pd.read_excel(fb_path, engine='calamine')
+        df = safe_read_excel(fb_path)
         check_cols = [str(c).strip().lower() for c in df.columns]
         if 'rating' in check_cols or 'slno' in check_cols or 'branch name' in check_cols:
             df.columns = df.columns.str.strip()
             return df
-        
-        df_preview = pd.read_excel(fb_path, engine='calamine', header=None, nrows=20)
+
+        df_preview = safe_read_excel(fb_path, header=None, nrows=20)
         header_idx = 0
         for i in range(len(df_preview)):
             row_vals = df_preview.iloc[i].astype(str).str.strip().str.lower().tolist()
             if 'rating' in row_vals or 'branch name' in row_vals or 'slno' in row_vals:
                 header_idx = i
                 break
-        
-        df_actual = pd.read_excel(fb_path, engine='calamine', header=header_idx)
+
+        df_actual = safe_read_excel(fb_path, header=header_idx)
         df_actual.columns = df_actual.columns.str.strip()
         return df_actual
     except Exception:
-        df = pd.read_excel(fb_path, engine='calamine')
+        df = safe_read_excel(fb_path)
         df.columns = df.columns.str.strip()
         return df
 
@@ -217,7 +229,7 @@ def load_feedback_auto(fb_path):
 def process_reports(sales_path, fb_path, output_path):
 
     # ── Load & clean sales ──────────────────────────────────────────────────
-    df_sales = pd.read_excel(sales_path, engine='calamine', sheet_name='Detailed Sales Report', header=6)
+    df_sales = safe_read_excel(sales_path, sheet_name='Detailed Sales Report', header=6)
     df_sales.columns = df_sales.columns.str.strip()
 
     for col in df_sales.columns:
@@ -535,7 +547,7 @@ def _build_sms_branch_report(df_sales: pd.DataFrame,
 
 def process_monthly_report(sales_path: str, fb_path: str, output_path: str):
     """Generate the standalone SMS-Style Branch Conversion Excel (Section 02)."""
-    df_sales = pd.read_excel(sales_path, engine='calamine', sheet_name='Detailed Sales Report', header=6)
+    df_sales = safe_read_excel(sales_path, sheet_name='Detailed Sales Report', header=6)
     df_sales.columns = df_sales.columns.str.strip()
     for col in df_sales.columns:
         if 'category' in str(col).lower() or 'designation' in str(col).lower():
@@ -583,6 +595,12 @@ def handle_exception(e):
 # ---------------------------------------------------------------------------
 # Flask routes
 # ---------------------------------------------------------------------------
+@app.route('/health')
+def health():
+    """Health-check endpoint — Render pings this to confirm the app is up."""
+    return jsonify({'status': 'ok'}), 200
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
