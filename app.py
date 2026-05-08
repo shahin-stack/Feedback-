@@ -1,5 +1,7 @@
 import os
 import gc
+import zipfile
+from xhtml2pdf import pisa
 from flask import Flask, render_template, request, send_file, jsonify
 from werkzeug.exceptions import HTTPException
 import pandas as pd
@@ -11,20 +13,43 @@ from openpyxl.utils import get_column_letter
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_key'
-# Increase max upload size if needed (e.g. 50MB)
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
+# Removed MAX_CONTENT_LENGTH limit to allow files of any size
+# app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024
 
 # ---------------------------------------------------------------------------
-# Safe Excel reader — tries calamine first, falls back to openpyxl
-# This prevents a hard crash on Render if the native calamine lib is missing.
+# Verify calamine (Rust-based Excel reader) is available at startup.
+# calamine uses ~5-10x less RAM than openpyxl for reading — critical on
+# Render's 512 MB free tier.  If it's missing the app refuses to start so
+# we get a clear build-log error instead of a silent OOM crash mid-request.
 # ---------------------------------------------------------------------------
+try:
+    import python_calamine  # noqa: F401  — just verifying the wheel is present
+    _CALAMINE_OK = True
+except ImportError:
+    _CALAMINE_OK = False
+    import warnings
+    warnings.warn(
+        "python-calamine is NOT installed. Excel reads will fall back to "
+        "openpyxl which may exceed Render's 512 MB RAM limit.",
+        RuntimeWarning, stacklevel=1
+    )
+
+
 def safe_read_excel(path, **kwargs):
-    """Read Excel with calamine engine; fall back to openpyxl on any error."""
-    try:
-        return pd.read_excel(path, engine='calamine', **kwargs)
-    except Exception:
-        kwargs.pop('engine', None)
-        return pd.read_excel(path, engine='openpyxl', **kwargs)
+    """
+    Read an Excel file using the calamine engine (Rust, low-RAM).
+    Falls back to openpyxl ONLY if calamine is genuinely unavailable,
+    and logs a warning so the operator knows the fallback was triggered.
+    """
+    if _CALAMINE_OK:
+        kwargs['engine'] = 'calamine'
+        return pd.read_excel(path, **kwargs)
+    # Fallback — remove any engine kwarg the caller may have passed
+    kwargs.pop('engine', None)
+    import warnings
+    warnings.warn(f"calamine unavailable — reading '{path}' with openpyxl (high RAM).",
+                  RuntimeWarning, stacklevel=2)
+    return pd.read_excel(path, engine='openpyxl', **kwargs)
 
 # On Render (and similar platforms) only /tmp is guaranteed writable.
 # Locally we use the project-relative folders as before.
@@ -224,6 +249,40 @@ def load_feedback_auto(fb_path):
         return df
 
 
+def load_sales_auto(sales_path):
+    """Robustly load sales Excel, handling potential header offsets and sheet names."""
+    try:
+        df = safe_read_excel(sales_path, sheet_name='Detailed Sales Report')
+        check_cols = [str(c).strip().lower() for c in df.columns]
+        if 'staff code' in check_cols or 'customer mobile' in check_cols or 'branch' in check_cols:
+            df.columns = df.columns.str.strip()
+            return df
+    except Exception:
+        pass
+        
+    try:
+        df_preview = safe_read_excel(sales_path, sheet_name='Detailed Sales Report', header=None, nrows=20)
+        sheet_kwargs = {'sheet_name': 'Detailed Sales Report'}
+    except Exception:
+        df_preview = safe_read_excel(sales_path, header=None, nrows=20)
+        sheet_kwargs = {}
+        
+    header_idx = 0
+    for i in range(len(df_preview)):
+        row_vals = df_preview.iloc[i].astype(str).str.strip().str.lower().tolist()
+        if 'staff code' in row_vals or 'customer mobile' in row_vals or 'branch' in row_vals:
+            header_idx = i
+            break
+            
+    try:
+        df_actual = safe_read_excel(sales_path, header=header_idx, **sheet_kwargs)
+    except Exception:
+        df_actual = safe_read_excel(sales_path, header=0)
+        
+    df_actual.columns = df_actual.columns.str.strip()
+    return df_actual
+
+
 # ---------------------------------------------------------------------------
 # Main processing function
 # ---------------------------------------------------------------------------
@@ -231,12 +290,11 @@ def process_reports(sales_path, fb_path, output_path):
 
     # ── Load & clean sales — only the columns we actually need ──────────────
     # Read all columns first to find the right header, then slim down
-    df_sales_raw = safe_read_excel(sales_path, sheet_name='Detailed Sales Report', header=6)
-    df_sales_raw.columns = df_sales_raw.columns.str.strip()
+    df_sales_raw = load_sales_auto(sales_path)
 
-    # Remove 'general' category/designation rows
-    for col in df_sales_raw.columns:
-        if 'category' in str(col).lower() or 'designation' in str(col).lower():
+    # Remove 'general' rows from key columns
+    for col in ['RBM', 'BDM', 'Staff', 'Branch', 'Category', 'Designation']:
+        if col in df_sales_raw.columns:
             df_sales_raw = df_sales_raw[~(df_sales_raw[col].astype(str).str.strip().str.lower() == 'general')]
 
     # Keep only the columns needed for all downstream operations
@@ -450,158 +508,249 @@ def process_reports(sales_path, fb_path, output_path):
             rating_col_names=['RATINGS'],
             int_col_names=['TOTAL BILL CUT', 'FEEDBACK COUNT']
         )
+        
+        if 'Sheet' in writer.book.sheetnames and len(writer.book.sheetnames) > 1:
+            del writer.book['Sheet']
+        writer.book.active = 0
 
 
 # ---------------------------------------------------------------------------
 # SMS-Style Branch Summary Report builder (Section 02)
 # ---------------------------------------------------------------------------
-def _build_sms_branch_report(df_sales: pd.DataFrame,
-                              df_fb: pd.DataFrame):
-    """
-    Branch-level summary:
-      BRANCH | TOTAL BILL CUT | FEEDBACK COUNT | RATINGS | % CONVERSION
-
-    Bill Cut  = unique Customer Mobile per Branch (dedup per branch)
-    Feedback  = count of FB rows per Branch
-    Rating    = average Rating per Branch
-    Conversion = Feedback / Bill Cut
-
-    Returns (df, date_range_str):
-      df             – the report DataFrame incl. TOTAL row
-      date_range_str – e.g. '01-04-2026 - 09-04-2026' (from sales dates)
-    """
-    BILL_COL = 'Customer Mobile'
-
-    # ── Detect & parse date column in sales ──────────────────────────────────
-    sales_dates = pd.Series(dtype='datetime64[ns]')
-    for cname in df_sales.columns:
-        if 'date' in str(cname).lower():
-            parsed = pd.to_datetime(df_sales[cname], errors='coerce')
-            if parsed.notna().sum() > 0:
-                sales_dates = parsed
-                break
-
-    date_range_str = ''
-    if not sales_dates.empty and sales_dates.notna().any():
-        d_min = sales_dates.min()
-        d_max = sales_dates.max()
-        date_range_str = f"{d_min.strftime('%d-%m-%Y')} - {d_max.strftime('%d-%m-%Y')}"
-
-    # ── Bill cuts: unique Customer Mobile ──────────────────────────
-    if BILL_COL in df_sales.columns and 'Branch' in df_sales.columns:
-        df_s = df_sales[['Branch', BILL_COL]].dropna(subset=['Branch'])
-        branch_bill_cut = (
-            df_s.drop_duplicates(subset=[BILL_COL])
-                .groupby('Branch').size()
-                .reset_index(name='TOTAL BILL CUT')
-        )
-        branch_bill_cut['Branch'] = branch_bill_cut['Branch'].astype(str).str.strip().str.upper()
-    else:
-        branch_bill_cut = pd.DataFrame(columns=['Branch', 'TOTAL BILL CUT'])
-
-    # ── Feedback count + avg rating per Branch ───────────────────────────────
-    if 'Branch Name' in df_fb.columns:
-        df_f = df_fb[['Branch Name', 'Rating']].copy()
-        df_f['Branch Name'] = df_f['Branch Name'].astype(str).str.strip().str.upper()
-        df_f = df_f[df_f['Branch Name'].notna() & (df_f['Branch Name'] != 'NAN')]
-        fb_branch = (
-            df_f.groupby('Branch Name')
-                .agg(FEEDBACK_COUNT=('Rating', 'count'), RATINGS=('Rating', 'mean'))
-                .reset_index()
-                .rename(columns={'Branch Name': 'Branch'})
-        )
-        fb_branch['Branch'] = fb_branch['Branch'].astype(str).str.strip().str.upper()
-    else:
-        fb_branch = pd.DataFrame(columns=['Branch', 'FEEDBACK_COUNT', 'RATINGS'])
-
-    # ── Merge sales branches (left join keeps all branches from sales) ────────
-    if branch_bill_cut.empty and fb_branch.empty:
-        report = pd.DataFrame(columns=['BRANCH', 'TOTAL BILL CUT', 'FEEDBACK COUNT',
-                                       'RATINGS', '% CONVERSION'])
-    elif branch_bill_cut.empty:
-        merged = fb_branch.copy()
-        merged['TOTAL BILL CUT'] = 0
-    elif fb_branch.empty:
-        merged = branch_bill_cut.copy()
-        merged['FEEDBACK_COUNT'] = 0
-        merged['RATINGS'] = 0.0
-    else:
-        merged = pd.merge(branch_bill_cut, fb_branch, on='Branch', how='left')
-        merged['TOTAL BILL CUT']  = merged['TOTAL BILL CUT'].fillna(0).astype(int)
-        merged['FEEDBACK_COUNT']  = merged['FEEDBACK_COUNT'].fillna(0).astype(int)
-        merged['RATINGS']         = merged['RATINGS'].fillna(0.0)
-
-    merged['RATINGS'] = merged['RATINGS'].round(1)
-    merged['% CONVERSION'] = np.where(
-        merged['TOTAL BILL CUT'] > 0,
-        merged['FEEDBACK_COUNT'] / merged['TOTAL BILL CUT'], 0.0)
-
-    report = merged[['Branch', 'TOTAL BILL CUT', 'FEEDBACK_COUNT',
-                     'RATINGS', '% CONVERSION']].copy()
-    report = report.rename(columns={'Branch': 'BRANCH', 'FEEDBACK_COUNT': 'FEEDBACK COUNT'})
-
-    # Sort by % CONVERSION descending
-    report = report.sort_values('% CONVERSION', ascending=False).reset_index(drop=True)
-
-    # Grand TOTAL row
-    tb = int(report['TOTAL BILL CUT'].sum())
-    tf = int(report['FEEDBACK COUNT'].sum())
-    vr = report['RATINGS'][report['RATINGS'] > 0]
-    total_row = {
-        'BRANCH': 'TOTAL',
-        'TOTAL BILL CUT': tb,
-        'FEEDBACK COUNT': tf,
-        'RATINGS': round(vr.mean(), 1) if len(vr) > 0 else 0.0,
-        '% CONVERSION': (tf / tb) if tb > 0 else 0.0,
-    }
-    report = pd.concat([report, pd.DataFrame([total_row])], ignore_index=True)
-
-    return report, date_range_str
-
-
 def process_monthly_report(sales_path: str, fb_path: str, output_path: str):
-    """Generate the standalone SMS-Style Branch Conversion Excel (Section 02)."""
-    df_sales_raw = safe_read_excel(sales_path, sheet_name='Detailed Sales Report', header=6)
-    df_sales_raw.columns = df_sales_raw.columns.str.strip()
-    for col in df_sales_raw.columns:
-        if 'category' in str(col).lower() or 'designation' in str(col).lower():
+    """
+    SMS Branch Feedback Report (Section 02).
+
+    Sales Report  → unique Customer Mobile per Branch  = Total Bill Cut
+    Feedback Report → Rating count per Branch Name      = Feedback Count
+                      Rating mean  per Branch Name      = Avg Rating
+    Output: branch-wise table sorted by % Conversion descending,
+            styled to match the reference image (pink title, red header,
+            green-shaded % Conversion column).
+    """
+    from openpyxl import load_workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    # ── 1. Load sales data ───────────────────────────────────────────────
+    df_sales_raw = load_sales_auto(sales_path)
+
+    # Remove 'general' rows from key columns
+    for col in ['RBM', 'BDM', 'Staff', 'Branch', 'Category', 'Designation']:
+        if col in df_sales_raw.columns:
             df_sales_raw = df_sales_raw[~(df_sales_raw[col].astype(str).str.strip().str.lower() == 'general')]
 
-    # Slim down to only the columns needed for the SMS report
-    NEEDED_SMS  = ['Branch', 'Customer Mobile', 'Date', 'Bill Date', 'Trans Date',
-                   'Sale Date', 'Invoice Date']
-    available   = [c for c in df_sales_raw.columns
-                   if c in NEEDED_SMS or 'date' in str(c).lower()]
-    # Always keep Branch and Customer Mobile
-    must_have   = [c for c in ['Branch', 'Customer Mobile'] if c in df_sales_raw.columns]
-    keep_cols   = list(dict.fromkeys(must_have + available))   # deduplicated, order preserved
-    df_sales    = df_sales_raw[keep_cols].copy()
+    # Auto-detect date range
+    date_range_str = ''
+    for col in df_sales_raw.columns:
+        if 'date' in str(col).lower():
+            try:
+                dates = pd.to_datetime(df_sales_raw[col], errors='coerce').dropna()
+                if len(dates) > 0:
+                    date_range_str = (
+                        f"{dates.min().strftime('%d-%m-%Y')} - "
+                        f"{dates.max().strftime('%d-%m-%Y')}")
+                    break
+            except Exception:
+                pass
+
+    BRANCH_COL = 'Branch'
+    MOBILE_COL = 'Customer Mobile'
+
+    avail = [c for c in [BRANCH_COL, MOBILE_COL] if c in df_sales_raw.columns]
+    df_sales = df_sales_raw[avail].copy()
     del df_sales_raw
     gc.collect()
 
-    df_fb = load_feedback_auto(fb_path)
-    if 'Branch Name' in df_fb.columns:
-        df_fb['Branch Name'] = df_fb['Branch Name'].astype(str).str.strip().str.upper()
-        df_fb['Branch Name'] = df_fb['Branch Name'].replace('NAN', np.nan)
-    df_fb['Rating'] = pd.to_numeric(df_fb['Rating'], errors='coerce').fillna(0.0)
-
-    branch_df, date_range_str = _build_sms_branch_report(df_sales, df_fb)
-
-    # Build title with date range
-    if date_range_str:
-        title_label = f'SMS FEEDBACK REPORT ({date_range_str})'
+    # Unique mobile per branch → bill cut
+    if BRANCH_COL in df_sales.columns and MOBILE_COL in df_sales.columns:
+        df_unique = df_sales.drop_duplicates(subset=[MOBILE_COL])
+        branch_bills = (df_unique.groupby(BRANCH_COL)
+                        .size().reset_index(name='TOTAL BILL CUT'))
     else:
-        title_label = 'SMS FEEDBACK REPORT'
+        branch_bills = pd.DataFrame(columns=[BRANCH_COL, 'TOTAL BILL CUT'])
 
-    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-        _write_styled_sheet(
-            writer, branch_df, sheet_name='BRANCH CONVERSION',
-            title_label=title_label,
-            text_col_names=['BRANCH'],
-            pct_col_names=['% CONVERSION'],
-            rating_col_names=['RATINGS'],
-            int_col_names=['TOTAL BILL CUT', 'FEEDBACK COUNT']
-        )
+    del df_sales
+    gc.collect()
+
+    # Normalise branch key for joining
+    branch_bills['_key'] = (branch_bills[BRANCH_COL]
+                            .astype(str).str.strip().str.upper())
+
+    # ── 2. Load feedback data ────────────────────────────────────────────
+    df_fb = load_feedback_auto(fb_path)
+
+    FB_BRANCH = 'Branch Name'
+    RATING_COL = 'Rating'
+
+    if FB_BRANCH in df_fb.columns:
+        df_fb[FB_BRANCH] = df_fb[FB_BRANCH].astype(str).str.strip().str.upper()
+        df_fb[FB_BRANCH] = df_fb[FB_BRANCH].replace('NAN', np.nan)
+        df_fb = df_fb.dropna(subset=[FB_BRANCH])
+
+    if RATING_COL in df_fb.columns:
+        df_fb[RATING_COL] = pd.to_numeric(df_fb[RATING_COL], errors='coerce')
+
+    fb_agg = (df_fb.groupby(FB_BRANCH)
+              .agg(FEEDBACK_COUNT=(RATING_COL, 'count'),
+                   RATING=(RATING_COL, 'mean'))
+              .reset_index())
+    fb_agg.columns = ['_key', 'FEEDBACK COUNT', 'RATING']
+    fb_agg['RATING'] = fb_agg['RATING'].round(1)
+
+    # ── 3. Merge & build report ──────────────────────────────────────────
+    merged = pd.merge(branch_bills, fb_agg, on='_key', how='outer')
+
+    # Recover branch label: prefer sales name, fall back to feedback key
+    merged['BRANCH'] = merged[BRANCH_COL].combine_first(merged['_key'])
+    merged['TOTAL BILL CUT'] = merged['TOTAL BILL CUT'].fillna(0).astype(int)
+    merged['FEEDBACK COUNT'] = merged['FEEDBACK COUNT'].fillna(0).astype(int)
+    merged['RATING'] = merged['RATING'].fillna(0.0).round(1)
+    merged['% CONVERSION'] = np.where(
+        merged['TOTAL BILL CUT'] > 0,
+        (merged['FEEDBACK COUNT'] / merged['TOTAL BILL CUT'] * 100).round(0).astype(int),
+        0)
+
+    report = (merged[['BRANCH', 'TOTAL BILL CUT', 'FEEDBACK COUNT',
+                       'RATING', '% CONVERSION']]
+              .sort_values('% CONVERSION', ascending=False)
+              .reset_index(drop=True))
+
+    # TOTAL row
+    t_bill = report['TOTAL BILL CUT'].sum()
+    t_fb   = report['FEEDBACK COUNT'].sum()
+    valid_r = report.loc[report['RATING'] > 0, 'RATING']
+    t_rat  = round(valid_r.mean(), 1) if len(valid_r) > 0 else 0.0
+    t_conv = round(t_fb / t_bill * 100) if t_bill > 0 else 0
+
+    report = pd.concat([report, pd.DataFrame([{
+        'BRANCH': 'TOTAL',
+        'TOTAL BILL CUT': t_bill,
+        'FEEDBACK COUNT': t_fb,
+        'RATING': t_rat,
+        '% CONVERSION': t_conv
+    }])], ignore_index=True)
+
+    # ── 4. Write raw data then style with openpyxl ───────────────────────
+    report.to_excel(output_path, index=False, engine='openpyxl')
+
+    wb = load_workbook(output_path)
+    ws = wb.active
+    ws.title = 'SMS FEEDBACK REPORT'
+
+    num_cols = len(report.columns)   # 5
+
+    # Insert 2 top rows for title + generated-date
+    ws.insert_rows(1)
+    ws.insert_rows(1)
+
+    title_text = 'SMS FEEDBACK REPORT'
+    if date_range_str:
+        title_text += f'  ({date_range_str})'
+
+    # Row 1 — pink title (matches reference image)
+    ws.merge_cells(start_row=1, start_column=1,
+                   end_row=1, end_column=num_cols)
+    tc = ws.cell(row=1, column=1, value=title_text)
+    tc.font      = Font(name='Calibri', bold=True, size=13, color='000000')
+    tc.fill      = PatternFill('solid', fgColor='FF99CC')
+    tc.alignment = Alignment(horizontal='center', vertical='center')
+    tc.border    = Border(
+        left=Side(style='medium', color='000000'),
+        right=Side(style='medium', color='000000'),
+        top=Side(style='medium', color='000000'),
+        bottom=Side(style='medium', color='000000'))
+    ws.row_dimensions[1].height = 26
+
+    # Row 2 — generated date stamp
+    dc = ws.cell(row=2, column=1,
+                 value=f"Generated: {datetime.now().strftime('%d %b %Y  %I:%M %p')}")
+    dc.font      = Font(name='Calibri', italic=True, size=9, color='7F7F7F')
+    dc.alignment = Alignment(horizontal='left', vertical='center')
+    ws.row_dimensions[2].height = 14
+
+    # Row 3 — red header (matches reference image)
+    HEADER_ROW = 3
+    for col_idx in range(1, num_cols + 1):
+        cell = ws.cell(row=HEADER_ROW, column=col_idx)
+        cell.fill      = PatternFill('solid', fgColor='FF0000')
+        cell.font      = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
+        cell.alignment = Alignment(horizontal='center', vertical='center',
+                                   wrap_text=True)
+        cell.border = Border(
+            left=Side(style='thin', color='FFFFFF'),
+            right=Side(style='thin', color='FFFFFF'),
+            top=Side(style='medium', color='000000'),
+            bottom=Side(style='medium', color='000000'))
+    ws.row_dimensions[HEADER_ROW].height = 32
+
+    # Column widths
+    for i, w in enumerate([32, 18, 18, 12, 18], 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    # Conversion colour scale (green shades — reference image)
+    def _conv_fill(pct):
+        if pct >= 60:   return PatternFill('solid', fgColor='00B050')   # dark green
+        if pct >= 40:   return PatternFill('solid', fgColor='92D050')   # medium green
+        if pct >= 30:   return PatternFill('solid', fgColor='C6EFCE')   # light green
+        if pct >= 20:   return PatternFill('solid', fgColor='FFEB9C')   # yellow-green
+        return          PatternFill('solid', fgColor='FFC7CE')           # light red / low
+
+    thin = Border(left=Side(style='thin', color='BFBFBF'),
+                  right=Side(style='thin', color='BFBFBF'),
+                  top=Side(style='thin', color='BFBFBF'),
+                  bottom=Side(style='thin', color='BFBFBF'))
+    thick = Border(left=Side(style='medium', color='1F3864'),
+                   right=Side(style='medium', color='1F3864'),
+                   top=Side(style='medium', color='1F3864'),
+                   bottom=Side(style='medium', color='1F3864'))
+
+    DATA_START = HEADER_ROW + 1
+    total_rows = len(report)   # includes TOTAL row
+
+    for r_offset, row_data in enumerate(report.itertuples(index=False), start=0):
+        r_idx    = DATA_START + r_offset
+        is_total = (r_offset == total_rows - 1)
+
+        for col_idx in range(1, num_cols + 1):
+            cell = ws.cell(row=r_idx, column=col_idx)
+            if is_total:
+                cell.fill   = PatternFill('solid', fgColor='D6E4F0')
+                cell.font   = Font(name='Calibri', bold=True, size=11,
+                                   color='1F3864')
+                cell.border = thick
+            else:
+                cell.fill   = PatternFill('solid', fgColor='FFFFFF')
+                cell.font   = Font(name='Calibri', size=10)
+                cell.border = thin
+
+            cell.alignment = Alignment(
+                horizontal='left' if col_idx == 1 else 'center',
+                vertical='center')
+
+        # Colour-code % CONVERSION cell (col 5)
+        conv_cell = ws.cell(row=r_idx, column=5)
+        pct_val   = int(row_data[4])   # index 4 = '% CONVERSION'
+        if is_total:
+            conv_cell.value = f'{pct_val}%'
+        else:
+            conv_cell.fill  = _conv_fill(pct_val)
+            conv_cell.value = f'{pct_val}%'
+            conv_cell.font  = Font(name='Calibri', bold=True, size=10)
+
+        ws.row_dimensions[r_idx].height = 18
+
+    # Freeze header
+    ws.freeze_panes = ws.cell(row=DATA_START, column=1)
+
+    # Remove default Sheet if it crept in
+    for sname in list(wb.sheetnames):
+        if sname not in ('SMS FEEDBACK REPORT',) and len(wb.sheetnames) > 1:
+            if sname == 'Sheet':
+                del wb[sname]
+
+    wb.save(output_path)
+    gc.collect()
 
 
 # ---------------------------------------------------------------------------
@@ -680,7 +829,7 @@ def process_monthly():
         feedback_file.save(fb_path)
 
         timestamp   = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-        out_name    = f'Monthly_Conversion_{timestamp}.xlsx'
+        out_name    = f'SMS_Feedback_Report_{timestamp}.xlsx'
         output_path = os.path.join(OUTPUT_FOLDER, out_name)
 
         process_monthly_report(sales_path, fb_path, output_path)
@@ -699,8 +848,8 @@ def download(filename):
 
 
 if __name__ == '__main__':
-    # Determine port from Render/environment, default to 9020 locally
-    port = int(os.environ.get('PORT', 9020))
+    # Determine port: Use Render's PORT if deployed, otherwise strictly 7080 locally
+    port = int(os.environ.get('PORT')) if os.environ.get('RENDER') else 7080
     print(f"Starting Feedback Report Portal server on port {port}...")
     # On Render, apps MUST bind to 0.0.0.0 to receive external traffic.
     # use_reloader=False to prevent Werkzeug spawning duplicate processes on production

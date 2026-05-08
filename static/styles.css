@@ -1,40 +1,43 @@
 /* ============================================
-   FEEDBACK REPORT PORTAL — Premium Dark Theme
+   FEEDBACK REPORT PORTAL — Light Theme
    ============================================ */
 
 /* --- CSS Variables --- */
 :root {
-    --bg-base: #080c14;
-    --bg-surface: #0d1422;
-    --bg-card: rgba(255,255,255,0.04);
-    --bg-card-hover: rgba(255,255,255,0.07);
-    
-    --border: rgba(255,255,255,0.08);
-    --border-hover: rgba(255,255,255,0.16);
-    
-    --text-primary: #f1f5f9;
-    --text-secondary: #94a3b8;
-    --text-muted: #4b6177;
+    --bg-base: #f0f4f8;
+    --bg-surface: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f8fafc;
 
-    --blue: #3b82f6;
-    --blue-glow: rgba(59, 130, 246, 0.3);
-    --purple: #8b5cf6;
-    --purple-glow: rgba(139, 92, 246, 0.3);
-    --green: #10b981;
-    --green-glow: rgba(16, 185, 129, 0.25);
-    --amber: #f59e0b;
-    --red: #ef4444;
-    --red-glow: rgba(239, 68, 68, 0.2);
+    --border: #e2e8f0;
+    --border-hover: #cbd5e1;
+
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+
+    --blue: #2563eb;
+    --blue-glow: rgba(37,99,235,0.15);
+    --purple: #7c3aed;
+    --purple-glow: rgba(124,58,237,0.15);
+    --green: #059669;
+    --green-glow: rgba(5,150,105,0.15);
+    --amber: #d97706;
+    --red: #dc2626;
+    --red-glow: rgba(220,38,38,0.1);
+
+    --teal: #0891b2;
+    --teal-light: #e0f2fe;
 
     --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     --radius-sm: 8px;
     --radius-md: 14px;
     --radius-lg: 20px;
     --radius-xl: 28px;
-    
-    --shadow-card: 0 4px 24px rgba(0,0,0,0.4);
-    --shadow-glow-blue: 0 0 40px rgba(59,130,246,0.15);
-    --shadow-glow-purple: 0 0 40px rgba(139,92,246,0.15);
+
+    --shadow-card: 0 2px 12px rgba(0,0,0,0.07);
+    --shadow-glow-blue: 0 0 20px rgba(37,99,235,0.08);
+    --shadow-glow-purple: 0 0 20px rgba(124,58,237,0.08);
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -55,71 +58,16 @@ body {
     min-height: 100vh;
     overflow-x: hidden;
     position: relative;
+    background-image: none;
 }
 
 /* ============================================
    ANIMATED BACKGROUND ORBS
    ============================================ */
-.bg-orbs {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    overflow: hidden;
-}
-
-.orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(100px);
-    opacity: 0.5;
-    animation: orbFloat 15s ease-in-out infinite alternate;
-}
-
-.orb-1 {
-    width: 600px; height: 600px;
-    background: radial-gradient(circle, #3b82f6, transparent 65%);
-    top: -200px; left: -200px;
-    animation-delay: 0s;
-}
-.orb-2 {
-    width: 500px; height: 500px;
-    background: radial-gradient(circle, #8b5cf6, transparent 65%);
-    bottom: -150px; right: -100px;
-    animation-delay: -5s;
-}
-.orb-3 {
-    width: 350px; height: 350px;
-    background: radial-gradient(circle, #10b981, transparent 65%);
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    animation-delay: -10s;
-    opacity: 0.25;
-}
-.orb-4 {
-    width: 250px; height: 250px;
-    background: radial-gradient(circle, #f59e0b, transparent 65%);
-    top: 20%; right: 10%;
-    animation-delay: -7s;
-    opacity: 0.2;
-}
-
-@keyframes orbFloat {
-    0% { transform: translate(0, 0) scale(1); }
-    100% { transform: translate(40px, 60px) scale(1.15); }
-}
-
-/* Grid overlay */
-.grid-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    background-image: 
-        linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
-    background-size: 50px 50px;
-    pointer-events: none;
-}
+/* Orbs hidden in light theme */
+.bg-orbs { display: none; }
+.orb { display: none; }
+.grid-overlay { display: none; }
 
 /* ============================================
    PAGE WRAPPER
@@ -131,6 +79,7 @@ body {
     margin: 0 auto;
     padding: 0 1.5rem 4rem;
     min-height: 100vh;
+    /* nav is full-width so remove side padding from wrapper for nav */
 }
 
 /* ============================================
@@ -140,9 +89,12 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1.25rem 0;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 4rem;
+    padding: 0.9rem 1.5rem;
+    background: #1e2d40;
+    border-bottom: none;
+    margin-bottom: 0;
+    border-radius: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 .nav-brand {
@@ -163,16 +115,17 @@ body {
 .brand-name {
     font-size: 1.1rem;
     font-weight: 700;
-    background: linear-gradient(to right, #fff 40%, #94a3b8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: #ffffff;
+    -webkit-text-fill-color: #ffffff;
+    background: none;
+    -webkit-background-clip: unset;
+    background-clip: unset;
 }
 
 .brand-badge {
-    background: rgba(59,130,246,0.15);
-    border: 1px solid rgba(59,130,246,0.3);
-    color: #60a5fa;
+    background: rgba(8,145,178,0.25);
+    border: 1px solid rgba(8,145,178,0.5);
+    color: #67e8f9;
     font-size: 0.65rem;
     font-weight: 600;
     padding: 2px 8px;
@@ -185,13 +138,13 @@ body {
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    background: rgba(16,185,129,0.08);
-    border: 1px solid rgba(16,185,129,0.2);
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
     border-radius: 20px;
     padding: 0.3rem 0.75rem;
     font-size: 0.8rem;
     font-weight: 500;
-    color: #34d399;
+    color: #a7f3d0;
 }
 
 .status-dot {
