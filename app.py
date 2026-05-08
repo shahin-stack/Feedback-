@@ -194,63 +194,69 @@ def _add_total_row(df: pd.DataFrame, label_col: str,
 # Load Feedback Data Helper
 # ---------------------------------------------------------------------------
 def load_feedback_auto(fb_path):
-    """Robustly load feedback Excel, handling potential header offsets."""
-    try:
-        df = safe_read_excel(fb_path)
-        check_cols = [str(c).strip().lower() for c in df.columns]
-        if 'rating' in check_cols or 'slno' in check_cols or 'branch name' in check_cols:
-            df.columns = df.columns.str.strip()
-            return df
+    """Robustly load feedback Excel — reads only the columns needed, minimising RAM."""
+    NEEDED = ['Branch Name', 'Staff Name', 'Rating', 'RBM', 'BDM']
 
-        df_preview = safe_read_excel(fb_path, header=None, nrows=20)
-        header_idx = 0
-        for i in range(len(df_preview)):
-            row_vals = df_preview.iloc[i].astype(str).str.strip().str.lower().tolist()
-            if 'rating' in row_vals or 'branch name' in row_vals or 'slno' in row_vals:
-                header_idx = i
-                break
+    # Scan first 20 rows to detect header position
+    df_preview = safe_read_excel(fb_path, header=None, nrows=20)
+    header_idx = 0
+    for i in range(len(df_preview)):
+        row_vals = df_preview.iloc[i].astype(str).str.strip().str.lower().tolist()
+        if 'rating' in row_vals or 'branch name' in row_vals or 'slno' in row_vals:
+            header_idx = i
+            break
+    del df_preview
+    gc.collect()
 
-        df_actual = safe_read_excel(fb_path, header=header_idx)
-        df_actual.columns = df_actual.columns.str.strip()
-        return df_actual
-    except Exception:
-        df = safe_read_excel(fb_path)
-        df.columns = df.columns.str.strip()
-        return df
+    # Get column names only (nrows=0)
+    df_cols = safe_read_excel(fb_path, header=header_idx, nrows=0)
+    df_cols.columns = df_cols.columns.str.strip()
+    available_usecols = [c for c in NEEDED if c in df_cols.columns]
+
+    # Read only needed columns
+    df_actual = safe_read_excel(
+        fb_path, header=header_idx,
+        usecols=available_usecols if available_usecols else None)
+    df_actual.columns = df_actual.columns.str.strip()
+    return df_actual
+
 
 
 def load_sales_auto(sales_path):
-    """Robustly load sales Excel, handling potential header offsets and sheet names."""
+    """Robustly load sales Excel — reads only the 6 columns needed, minimising RAM."""
+    NEEDED = ['Staff Code', 'Staff', 'Branch', 'RBM', 'BDM', 'Customer Mobile']
+
+    # Detect header row by scanning first 20 rows (no usecols yet)
     try:
-        df = safe_read_excel(sales_path, sheet_name='Detailed Sales Report')
-        check_cols = [str(c).strip().lower() for c in df.columns]
-        if 'staff code' in check_cols or 'customer mobile' in check_cols or 'branch' in check_cols:
-            df.columns = df.columns.str.strip()
-            return df
-    except Exception:
-        pass
-        
-    try:
-        df_preview = safe_read_excel(sales_path, sheet_name='Detailed Sales Report', header=None, nrows=20)
+        df_preview = safe_read_excel(
+            sales_path, sheet_name='Detailed Sales Report', header=None, nrows=20)
         sheet_kwargs = {'sheet_name': 'Detailed Sales Report'}
     except Exception:
         df_preview = safe_read_excel(sales_path, header=None, nrows=20)
         sheet_kwargs = {}
-        
+
     header_idx = 0
     for i in range(len(df_preview)):
         row_vals = df_preview.iloc[i].astype(str).str.strip().str.lower().tolist()
         if 'staff code' in row_vals or 'customer mobile' in row_vals or 'branch' in row_vals:
             header_idx = i
             break
-            
-    try:
-        df_actual = safe_read_excel(sales_path, header=header_idx, **sheet_kwargs)
-    except Exception:
-        df_actual = safe_read_excel(sales_path, header=0)
-        
+    del df_preview
+    gc.collect()
+
+    # Read full file to get all column names (still header-row only overhead)
+    df_cols = safe_read_excel(sales_path, header=header_idx, nrows=0, **sheet_kwargs)
+    df_cols.columns = df_cols.columns.str.strip()
+    available_usecols = [c for c in NEEDED if c in df_cols.columns]
+
+    # Now read only the needed columns
+    df_actual = safe_read_excel(
+        sales_path, header=header_idx,
+        usecols=available_usecols if available_usecols else None,
+        **sheet_kwargs)
     df_actual.columns = df_actual.columns.str.strip()
     return df_actual
+
 
 
 # ---------------------------------------------------------------------------
