@@ -16,40 +16,10 @@ app.secret_key = 'super_secret_key'
 # Removed MAX_CONTENT_LENGTH limit to allow files of any size
 # app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024
 
-# ---------------------------------------------------------------------------
-# Verify calamine (Rust-based Excel reader) is available at startup.
-# calamine uses ~5-10x less RAM than openpyxl for reading — critical on
-# Render's 512 MB free tier.  If it's missing the app refuses to start so
-# we get a clear build-log error instead of a silent OOM crash mid-request.
-# ---------------------------------------------------------------------------
-try:
-    import python_calamine  # noqa: F401  — just verifying the wheel is present
-    _CALAMINE_OK = True
-except ImportError:
-    _CALAMINE_OK = False
-    import warnings
-    warnings.warn(
-        "python-calamine is NOT installed. Excel reads will fall back to "
-        "openpyxl which may exceed Render's 512 MB RAM limit.",
-        RuntimeWarning, stacklevel=1
-    )
-
-
 def safe_read_excel(path, **kwargs):
-    """
-    Read an Excel file using the calamine engine (Rust, low-RAM).
-    Falls back to openpyxl ONLY if calamine is genuinely unavailable,
-    and logs a warning so the operator knows the fallback was triggered.
-    """
-    if _CALAMINE_OK:
-        kwargs['engine'] = 'calamine'
-        return pd.read_excel(path, **kwargs)
-    # Fallback — remove any engine kwarg the caller may have passed
-    kwargs.pop('engine', None)
-    import warnings
-    warnings.warn(f"calamine unavailable — reading '{path}' with openpyxl (high RAM).",
-                  RuntimeWarning, stacklevel=2)
-    return pd.read_excel(path, engine='openpyxl', **kwargs)
+    """Read an Excel file using openpyxl engine."""
+    kwargs['engine'] = 'openpyxl'
+    return pd.read_excel(path, **kwargs)
 
 # On Render (and similar platforms) only /tmp is guaranteed writable.
 # Locally we use the project-relative folders as before.

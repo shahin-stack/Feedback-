@@ -2,7 +2,6 @@ Flask==3.0.3
 pandas==2.1.4
 openpyxl==3.1.4
 numpy==1.26.4
-python-calamine==0.1.7
 gunicorn==22.0.0
 werkzeug==3.0.3
 xhtml2pdf==0.2.17
